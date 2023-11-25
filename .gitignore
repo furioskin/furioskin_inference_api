@@ -5,7 +5,7 @@ __pycache__/
 .dongwonfile
 # C extensions
 *.so
-
+static/
 # Distribution / packaging
 .Python
 build/
