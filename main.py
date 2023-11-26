@@ -47,45 +47,50 @@ def letterbox(
 
 app = FastAPI()
 
+
+
+ssd_resnet34 = SSDResNet34()
+runner1 = create_runner(ssd_resnet34.model_source(num_pe=1), device='warboy(1)*1')
+runner2 = create_runner("/home/elicer/dongwon/furioskin_inference_api/resnet_retrained_model_quantized_percentile.onnx", device='warboy(1)*1')
+
 @app.post("/infer")
 def infer(file: UploadFile):
-
     file_location = f"static/{file.filename}"
     with open(file_location, "wb+") as file_object:
         file_object.write(file.file.read())
 
     base_path = ''
-    
+
     #images = [base_path+'images/coco/a10.png']
     images = [base_path+file_location]
 
-    ssd_resnet34 = SSDResNet34()
 
-    with create_runner(ssd_resnet34.model_source(num_pe=1), device='warboy(1)*1') as runner1:
-        with create_runner("/home/elicer/dongwon/furioskin_inference_api/resnet_retrained_model_quantized_percentile.onnx", device='warboy(1)*1') as runner2:
-            # object detection
-            input1, contexts = ssd_resnet34.preprocess(images[0])
-            output1 = runner1.run(input1)
+    input1, contexts = ssd_resnet34.preprocess(images[0])
+    output1 = runner1.run(input1)
 
-            result = ssd_resnet34.postprocess(output1, contexts)
+    result = ssd_resnet34.postprocess(output1, contexts)
 
-            # object classification
-            if len(result) > 0:
-                input2, contexts = preprocess(images[0])
-                outputs = runner2.run(input2)
-                max_index = np.argmax(outputs)
-                #print('label', max_index)
-                # max_index = label -> 0 : 여드름, 1 : 두드러기
-                return {"labels": int(max_index)}
-            
-            # object detection이 되지 않았을 때
-            else :
-                print('object non detected!!')
-                return {"labels": -1}  
+    # object classification
+    if len(result) > 0:
+        input2, contexts = preprocess(images[0])
+        outputs = runner2.run(input2)
+        max_index = np.argmax(outputs)
+        #print('label', max_index)
+        # max_index = label -> 0 : 여드름, 1 : 두드러기
+        return {"labels": int(max_index)}
+    
+    # object detection이 되지 않았을 때
+    else :
+        print('object non detected!!')
+        return {"labels": -1}  
 
     
-    
-#    return {"label": 1}
+@app.on_event("shutdown") 
+def shutdown_event(): 
+    print("Shutdown event") 
+    runner1.close()
+    runner2.close()
+    print("Shutdown complete")
 
 if __name__ == "__main__":
 
